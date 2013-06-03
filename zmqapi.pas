@@ -27,11 +27,13 @@ unit zmqapi;
 interface
 
 uses
-   {$ifdef UNIX}
-   BaseUnix,
-   {$else}
+{$ifdef MSWINDOWS}
    Windows,
-   {$endif}
+{$elseif defined(UNIX)}
+   BaseUnix,
+{$elseif defined(POSIX)}
+   System.SyncObjs,
+{$endif}
    Classes
   , SysUtils
   , zmq
@@ -510,8 +512,11 @@ type
     fTimeOut: Integer;
 
     fPollNumber: Integer;
-
+{$ifdef POSIX}
+    cs: TCriticalSection;
+{$else}
     cs: TRTLCriticalSection;
+{$endif}
     fSync: Boolean;
 
     fonException: TZMQExceptionProc;
@@ -564,7 +569,9 @@ type
   procedure ZMQDevice( device: TZMQDevice; insocket, outsocket: TZMQSocket );
   procedure ZMQVersion(var major, minor, patch: Integer);
 
+{$ifndef POSIX}
   procedure ZMQTerminate;
+{$endif}
 var
   ZMQTerminated: Boolean = false;
 type
@@ -610,9 +617,13 @@ implementation
 
 var
   contexts: TList;
+{$ifdef POSIX}
+  cs: TCriticalSection;
+{$else}
   cs: TRTLCriticalSection;
+{$endif}
 
-{$ifndef UNIX}
+{$ifdef MSWINDOWS}
 function console_handler( dwCtrlType: DWORD ): BOOL; stdcall; forward;
 {$endif}
 
@@ -996,11 +1007,11 @@ begin
   begin
     iSize := msg.size;
     msgnew := TZMQFrame.create( iSize );
-    {$ifdef UNIX}
-    Move( msg.data^, msgnew.data^, iSize );
-    {$else}
+{$ifdef MSWINDOWS}
     CopyMemory( msgnew.data, msg.data, iSize );
-    {$endif}
+{$else}
+    Move( msg.data^, msgnew.data^, iSize );
+{$endif}
     result.add( msgnew );
     msg := next;
   end;
@@ -1811,11 +1822,11 @@ begin
       msgsize := socket.recv( msg, [] );
       if msgsize > -1 then
       begin
-        {$ifdef UNIX}
-        Move( msg.data^, event, SizeOf(event) );
-        {$else}
+{$ifdef MSWINDOWS}
         CopyMemory( @event, msg.data, SizeOf(event) );
-        {$endif}
+{$else}
+        Move( msg.data^, event, SizeOf(event) );
+{$endif}
         i := 0;
         while event.event <> 0 do
         begin
@@ -1841,11 +1852,13 @@ end;
 
 procedure TZMQSocket.RegisterMonitor( proc: TZMQMonitorProc; events: TZMQMonitorEvents = cZMQMonitorEventsAll );
 var
-  {$ifdef UNIX}
+{$ifdef UNIX}
   tid: QWord;
-  {$else}
+{$elseif defined(MSWINDOWS)}
   tid: Cardinal;
-  {$endif}
+{$elseif defined(POSIX)}
+  tid: NativeUInt;
+{$endif}
 begin
   if fMonitorRec <> nil then
     DeRegisterMonitor;
@@ -1859,7 +1872,11 @@ begin
   CheckResult( zmq_socket_monitor( SocketPtr,
     PAnsiChar( AnsiString( fMonitorRec.Addr ) ), Word( events ) ) );
 
+{$IFDEF POSIX}
+  fMonitorThread := BeginThread( nil, @MonitorProc, fMonitorRec, tid);
+{$ELSE}
   fMonitorThread := BeginThread( nil, 0, @MonitorProc, fMonitorRec, 0, tid );
+{$ENDIF}
   sleep(1);
 
 end;
@@ -1868,10 +1885,7 @@ procedure TZMQSocket.DeRegisterMonitor;
 var
   rc: Cardinal;
 begin
-  {$ifdef UNIX}
-    raise Exception.Create(Self.ClassName+'.DeRegisterMonitor not implemented');
-    { TODO : implement equivalent to WaitForSingleObject like pthread_join() ? }
-  {$else}
+{$ifdef MSWINDOWS}
   if fMonitorRec <> nil then
   begin
     fMonitorRec.Terminated := True;
@@ -1882,7 +1896,10 @@ begin
     Dispose( fMonitorRec );
     fMonitorRec := nil;
   end;
-  {$endif}
+{$else}
+    raise Exception.Create(Self.ClassName+'.DeRegisterMonitor not implemented');
+    { TODO : implement equivalent to WaitForSingleObject like pthread_join() ? }
+{$endif}
 end;
 
 {$endif}
@@ -2126,7 +2143,11 @@ end;
 
 function TZMQContext.Socket( stype: TZMQSocketType ): TZMQSocket;
 begin
+{$IFDEF POSIX}
+  cs.Enter;
+{$ELSE}
   EnterCriticalSection( cs );
+{$ENDIF}
   try
     result := TZMQSocket.Create;
     result.fSocket := zmq_socket( ContextPtr, Byte( stype ) );
@@ -2139,7 +2160,11 @@ begin
     result.fContext := self;
     fSockets.Add( result );
   finally
+{$IFDEF POSIX}
+    cs.Leave;
+{$ELSE}
     LeaveCriticalSection( cs );
+{$ENDIF}
   end;
 end;
 
@@ -2147,14 +2172,22 @@ procedure TZMQContext.RemoveSocket( lSocket: TZMQSocket );
 var
   i: Integer;
 begin
+{$IFDEF POSIX}
+  cs.Enter;
+{$ELSE}
   EnterCriticalSection( cs );
+{$ENDIF}
   try
     i := fSockets.IndexOf( lSocket );
     if i < 0 then
       raise EZMQException.Create( 'Socket not in context' );
     fSockets.Delete( i );
   finally
+{$IFDEF POSIX}
+    cs.Leave;
+{$ELSE}
     LeaveCriticalSection( cs );
+{$ENDIF}
   end;
 end;
 
@@ -2173,12 +2206,13 @@ const
 
 constructor TZMQPoller.Create( lSync: Boolean = false; lContext: TZMQContext = nil );
 begin
-  fSync := lSync;
-  {$ifdef UNIX}
+{$ifdef UNIX}
   InitCriticalSection( cs );
-  {$else}
+{$elseif defined(POSIX)}
+  cs := TCriticalSection.Create;
+{$ELSEIF defined(MSWINDOWS)}
   InitializeCriticalSection( cs );
-  {$endif}
+{$endif}
 
   fonException := nil;
 
@@ -2217,11 +2251,13 @@ begin
   end;
 
 
-  {$ifdef UNIX}
+{$ifdef UNIX}
   DoneCriticalSection( cs );
-  {$else}
+{$elseif defined(POSIX)}
+  cs := TCriticalSection.Create;
+{$elseif defined(MSWINDOWS)}
   DeleteCriticalSection( cs );
-  {$endif}
+{$endif}
   inherited;
 end;
 
@@ -2235,7 +2271,11 @@ end;
 
 procedure TZMQPoller.AddToPollItems( socket: TZMQSocket; events: TZMQPollEvents );
 begin
+{$IFDEF POSIX}
+  cs.Enter;
+{$ELSE}
   EnterCriticalSection( cs );
+{$ENDIF}
   try
     if fPollItemCapacity = fPollItemCount then
     begin
@@ -2251,7 +2291,11 @@ begin
     fPollItemCount := fPollItemCount + 1;
     fPollNumber := fPollItemCount;
   finally
+{$IFDEF POSIX}
+    cs.Leave;
+{$ELSE}
     LeaveCriticalSection( cs );
+{$ENDIF}
   end;
 end;
 
@@ -2259,7 +2303,11 @@ procedure TZMQPoller.DelFromPollItems( socket: TZMQSocket; events: TZMQPollEvent
 var
   i: Integer;
 begin
+{$IFDEF POSIX}
+  cs.Enter;
+{$ELSE}
   EnterCriticalSection( cs );
+{$ENDIF}
   try
     fPollItem[indx].events := fPollItem[indx].events and not Byte( events );
     if fPollItem[indx].events = 0 then
@@ -2272,20 +2320,32 @@ begin
       Dec( fPollItemCount );
     end;
   finally
+{$IFDEF POSIX}
+    cs.Leave;
+{$ELSE}
     LeaveCriticalSection( cs );
+{$ENDIF}
   end;
 end;
 
 function TZMQPoller.getPollItem( indx: Integer ): TZMQPollItem;
 begin
+{$IFDEF POSIX}
+  cs.Enter;
+{$ELSE}
   EnterCriticalSection( cs );
+{$ENDIF}
   try
     result.socket := fPollSocket[indx];
     Byte(result.events) := fPollItem[indx].events;
     Byte(result.revents) := fPollItem[indx].revents;
 
   finally
+{$IFDEF POSIX}
+    cs.Leave;
+{$ELSE}
     LeaveCriticalSection( cs );
+{$ENDIF}
   end;
 end;
 
@@ -2663,7 +2723,9 @@ begin
   Freemem(na);
 end;
 
-{$else}
+{$endif}
+
+{$IFDEF MSWINDOWS}
 {
    This function is called when a CTRL_C_EVENT received, important that this
    function is executed in a separate thread, because Terminate terminates the
@@ -2688,10 +2750,12 @@ begin
 end;
 {$endif}
 
+{$ifndef POSIX}
 procedure ZMQTerminate;
 begin
   GenerateConsoleCtrlEvent( CTRL_C_EVENT, 0 );
 end;
+{$endif}
 
 { TZMQThread }
 
@@ -2768,26 +2832,30 @@ begin
 end;
 
 initialization
-  {$ifdef UNIX}
+{$ifdef UNIX}
   InitCriticalSection( cs );
-  {$else}
+{$elseif defined(POSIX)}
+  cs := TCriticalSection.Create;
+{$elseif defined(MSWINDOWS)}
   InitializeCriticalSection( cs );
-  {$endif}
+{$endif}
   contexts := TList.Create;
-  {$ifdef UNIX}
+{$ifdef UNIX}
   { TODO : Signal handling should normally be installed at application level, not in library }
   InstallSigHandler(SIGTERM);
   InstallSigHandler(SIGINT);
-  {$else}
+{$elseif defined(MSWINDOWS)}
   Windows.SetConsoleCtrlHandler( @console_handler, True );
-  {$endif}
+{$endif}
 
 finalization
   contexts.Free;
-  {$ifdef UNIX}
+{$ifdef UNIX}
   DoneCriticalSection( cs );
-  {$else}
+{$elseif defined(POSIX)}
+  cs.Free;
+{$elseif defined(MSWINDOWS)}
   DeleteCriticalSection( cs );
-  {$endif}
+{$endif}
 
 end.

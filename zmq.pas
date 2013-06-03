@@ -35,17 +35,19 @@ const
 {$ifdef zmq3}
   {$ifdef UNIX}
   libzmq = 'libzmq.so';
-  {$else}
+  {$elseif defined(MSWINDOWS)}
   libzmq = 'libzmq3-x86.dll';
 //  libzmq = 'libzmq3-x86-v100-mt-gd.dll';
 //  libzmq = 'libzmq_3_2_2_xp.dll';
+  {$elseif defined(MACOS)}
+  libzmq = 'libzmq.3.dylib';
   {$endif}
 {$else}
   libzmq = 'libzmq.dll';
 {$endif}
 
 {  Run-time API version detection                                              }
-procedure zmq_version( var major, minor, patch: Integer ); cdecl; external libzmq;
+procedure zmq_version( var major, minor, patch: Integer ); cdecl; external libzmq {$IFDEF MACOS}name '_zmq_version'{$ENDIF};
 
 {******************************************************************************}
 {*  0MQ errors.                                                               *}
@@ -86,10 +88,10 @@ const
 {*  of this function is to make the code 100% portable, including where 0MQ   *}
 {*  compiled with certain CRT library (on Windows) is linked to an            *}
 {*  application that uses different CRT library.                              *}
-function zmq_errno: Integer; cdecl; external libzmq;
+function zmq_errno: Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_errno'{$ENDIF};
 
 {*  Resolves system errors and 0MQ errors to human-readable string.           *}
-function zmq_strerror(errnum: Integer):PAnsiChar; cdecl; external libzmq;
+function zmq_strerror(errnum: Integer):PAnsiChar; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_strerror'{$ENDIF};
 
 {******************************************************************************}
 {*  0MQ infrastructure (a.k.a. context) initialisation & termination.         *}
@@ -106,15 +108,15 @@ const
   ZMQ_IO_THREADS_DFLT = 1;
   ZMQ_MAX_SOCKETS_DFLT = 1024;
 
-function zmq_ctx_new: Pointer; cdecl; external libzmq;
-function zmq_ctx_destroy( context: Pointer ): Integer; cdecl; external libzmq;
-function zmq_ctx_set( context: Pointer; option: Integer; optval: Integer ): Integer; cdecl; external libzmq;
-function zmq_ctx_get( context: Pointer; option: Integer ): Integer; cdecl; external libzmq;
+function zmq_ctx_new: Pointer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_ctx_new'{$ENDIF};
+function zmq_ctx_destroy( context: Pointer ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_ctx_destroy'{$ENDIF};
+function zmq_ctx_set( context: Pointer; option: Integer; optval: Integer ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_ctx_set'{$ENDIF};
+function zmq_ctx_get( context: Pointer; option: Integer ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_ctx_get'{$ENDIF};
 {$endif}
 
 {*  Old (legacy) API                                                          *}
-function zmq_init(io_threads: Integer): Pointer; cdecl; external libzmq;
-function zmq_term(context: Pointer): Integer; cdecl; external libzmq;
+function zmq_init(io_threads: Integer): Pointer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_init'{$ENDIF};
+function zmq_term(context: Pointer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_term'{$ENDIF};
 
 {******************************************************************************}
 {*  0MQ message definition.                                                   *}
@@ -170,23 +172,23 @@ type
   size_t = Cardinal;
 {$endif}
 
-function zmq_msg_init( var msg: zmq_msg_t ): Integer; cdecl; external libzmq;
-function zmq_msg_init_size( var msg: zmq_msg_t; size: size_t ): Integer; cdecl; external libzmq;
+function zmq_msg_init( var msg: zmq_msg_t ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_init'{$ENDIF};
+function zmq_msg_init_size( var msg: zmq_msg_t; size: size_t ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_init_size'{$ENDIF};
 function zmq_msg_init_data( var msg: zmq_msg_t; data: Pointer; size: size_t;
-  ffn: free_fn; hint: Pointer ): Integer; cdecl; external libzmq;
+  ffn: free_fn; hint: Pointer ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_init_data'{$ENDIF};
 
-function zmq_msg_close(var msg: zmq_msg_t): Integer; cdecl; external libzmq;
-function zmq_msg_move(dest, src: zmq_msg_t): Integer; cdecl; external libzmq;
-function zmq_msg_copy(dest, src: zmq_msg_t): Integer; cdecl; external libzmq;
-function zmq_msg_data(var msg: zmq_msg_t): Pointer; cdecl; external libzmq;
-function zmq_msg_size(var msg: zmq_msg_t): size_t; cdecl; external libzmq;
+function zmq_msg_close(var msg: zmq_msg_t): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_close'{$ENDIF};
+function zmq_msg_move(dest, src: zmq_msg_t): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_move'{$ENDIF};
+function zmq_msg_copy(dest, src: zmq_msg_t): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_copy'{$ENDIF};
+function zmq_msg_data(var msg: zmq_msg_t): Pointer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_data'{$ENDIF};
+function zmq_msg_size(var msg: zmq_msg_t): size_t; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_size'{$ENDIF};
 
 {$ifdef zmq3}
-function zmq_msg_more (var msg: zmq_msg_t): Integer; cdecl; external libzmq;
-function zmq_msg_get (var msg: zmq_msg_t; option: Integer): Integer; cdecl; external libzmq;
-function zmq_msg_set (var msg: zmq_msg_t; option: Integer; optval: Integer): Integer; cdecl; external libzmq;
-function zmq_msg_send (var msg: zmq_msg_t; s: Pointer; flags: Integer): Integer; cdecl; external libzmq;
-function zmq_msg_recv (var msg: zmq_msg_t; s: Pointer; flags: Integer): Integer; cdecl; external libzmq;
+function zmq_msg_more (var msg: zmq_msg_t): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_more'{$ENDIF};
+function zmq_msg_get (var msg: zmq_msg_t; option: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_get'{$ENDIF};
+function zmq_msg_set (var msg: zmq_msg_t; option: Integer; optval: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_set'{$ENDIF};
+function zmq_msg_send (var msg: zmq_msg_t; s: Pointer; flags: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_send'{$ENDIF};
+function zmq_msg_recv (var msg: zmq_msg_t; s: Pointer; flags: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_msg_recv'{$ENDIF};
 {$endif}
 {******************************************************************************}
 {*  0MQ socket definition.                                                    *}
@@ -332,30 +334,30 @@ type
 
 {$endif}
 
-function zmq_socket(context: Pointer; stype: Integer): Pointer; cdecl; external libzmq;
-function zmq_close(s: Pointer): Integer; cdecl; external libzmq;
-function zmq_setsockopt(s: Pointer; option: Integer; optval: Pointer; optvallen: size_t ): Integer; cdecl; external libzmq;
-function zmq_getsockopt(s: Pointer; option: Integer; optval: Pointer; var optvallen: size_t): Integer; cdecl; external libzmq;
-function zmq_bind(s: Pointer; addr: PAnsiChar): Integer; cdecl; external libzmq;
-function zmq_connect(s: Pointer; addr: PAnsiChar): Integer; cdecl; external libzmq;
+function zmq_socket(context: Pointer; stype: Integer): Pointer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_socket'{$ENDIF};
+function zmq_close(s: Pointer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_close'{$ENDIF};
+function zmq_setsockopt(s: Pointer; option: Integer; optval: Pointer; optvallen: size_t ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_setsockopt'{$ENDIF};
+function zmq_getsockopt(s: Pointer; option: Integer; optval: Pointer; var optvallen: size_t): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_getsockopt'{$ENDIF};
+function zmq_bind(s: Pointer; addr: PAnsiChar): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_bind'{$ENDIF};
+function zmq_connect(s: Pointer; addr: PAnsiChar): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_connect'{$ENDIF};
 {$ifdef zmq3}
-function zmq_unbind(s: Pointer; addr: PAnsiChar): Integer; cdecl; external libzmq;
-function zmq_disconnect(s: Pointer; addr: PAnsiChar): Integer; cdecl; external libzmq;
+function zmq_unbind(s: Pointer; addr: PAnsiChar): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_unbind'{$ENDIF};
+function zmq_disconnect(s: Pointer; addr: PAnsiChar): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_disconnect'{$ENDIF};
 {$endif}
 
 {$ifdef zmq3}
-function zmq_send (s: Pointer; const buffer; len: size_t; flags: Integer): Integer; cdecl; external libzmq;
-function zmq_recv (s: Pointer; var buffer; len: size_t; flags: Integer): Integer; cdecl; external libzmq;
+function zmq_send (s: Pointer; const buffer; len: size_t; flags: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_send'{$ENDIF};
+function zmq_recv (s: Pointer; var buffer; len: size_t; flags: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_recv'{$ENDIF};
 {$else}
-function zmq_send (s: Pointer; var msg: zmq_msg_t; flags: Integer): Integer; cdecl; external libzmq;
-function zmq_recv (s: Pointer; var msg: zmq_msg_t; flags: Integer): Integer; cdecl; external libzmq;
+function zmq_send (s: Pointer; var msg: zmq_msg_t; flags: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_send'{$ENDIF};
+function zmq_recv (s: Pointer; var msg: zmq_msg_t; flags: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_recv'{$ENDIF};
 {$endif}
 
 {$ifdef zmq3}
-function zmq_sendmsg(s: Pointer; var msg: zmq_msg_t; flags: Integer): Integer; cdecl; external libzmq;
-function zmq_recvmsg(s: Pointer; var msg: zmq_msg_t; flags: Integer): Integer; cdecl; external libzmq;
+function zmq_sendmsg(s: Pointer; var msg: zmq_msg_t; flags: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_sendmsg'{$ENDIF};
+function zmq_recvmsg(s: Pointer; var msg: zmq_msg_t; flags: Integer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_recvmsg'{$ENDIF};
 
-function zmq_socket_monitor( s: Pointer; addr: PAnsiChar; events: Integer ): Integer; cdecl; external libzmq;
+function zmq_socket_monitor( s: Pointer; addr: PAnsiChar; events: Integer ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_socket_monitor'{$ENDIF};
 
 {
 /*  Experimental                                                              */
@@ -382,7 +384,7 @@ type
     revents: Word;
   end;
 
-function zmq_poll( var items: pollitem_t; nitems: Integer; timeout: Longint ): Integer; cdecl; external libzmq;
+function zmq_poll( var items: pollitem_t; nitems: Integer; timeout: Longint ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_poll'{$ENDIF};
 
 {******************************************************************************}
 {*  Built-in devices                                                          *}
@@ -390,7 +392,7 @@ function zmq_poll( var items: pollitem_t; nitems: Integer; timeout: Longint ): I
 
 {$ifdef zmq3}
 {*  Built-in message proxy (3-way) *}
-function zmq_proxy( frontend, backend, capture: Pointer ): Integer; cdecl; external libzmq;
+function zmq_proxy( frontend, backend, capture: Pointer ): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_proxy'{$ENDIF};
 
 {$endif}
 
@@ -399,20 +401,20 @@ const
   ZMQ_FORWARDER = 2;
   ZMQ_QUEUE = 3;
 
-function zmq_device(device: Integer; insocket,outsocket: Pointer): Integer; cdecl; external libzmq;
+function zmq_device(device: Integer; insocket,outsocket: Pointer): Integer; cdecl; external libzmq {$IFDEF MACOS}name '_zmq_device'{$ENDIF};
 
 {*  Helper functions are used by perf tests so that they don't have to care   *}
 {*  about minutiae of time-related functions on different OS platforms.       *}
 
 {*  Starts the stopwatch. Returns the handle to the watch.                    *}
-function zmq_stopwatch_start: Pointer; stdcall; external libzmq;
+function zmq_stopwatch_start: Pointer; stdcall; external libzmq {$IFDEF MACOS}name '_zmq_stopwatch_start'{$ENDIF};
 
 {*  Stops the stopwatch. Returns the number of microseconds elapsed since     *}
 {*  the stopwatch was started.                                                *}
-function zmq_stopwatch_stop( watch: Pointer ): LongWord; stdcall; external libzmq;
+function zmq_stopwatch_stop( watch: Pointer ): LongWord; stdcall; external libzmq {$IFDEF MACOS}name '_zmq_stopwatch_stop'{$ENDIF};
 
 {*  Sleeps for specified number of seconds.                                   *}
-procedure zmq_sleep( seconds: Integer ); stdcall; external libzmq;
+procedure zmq_sleep( seconds: Integer ); stdcall; external libzmq {$IFDEF MACOS}name '_zmq_sleep'{$ENDIF};
 
 implementation
 

@@ -4,6 +4,8 @@
 This is a binding for [ZMQ](http://www.zeromq.org). Should work with Delphi7, BDS2006, XE2 
 and FPC 2.6.0. 
 
+Update : I am in the process of updating to support FireMonkey on Windows, OSX and ultimately iOS. I've just pushed the initial changes to make it work on FMX on Win and OSX. More testing required - Malcolm Groves
+
 General
 =======
 
